@@ -38,7 +38,7 @@ class FreeseerCore:
         self.ui = ui
         
         # Read in config information
-        configdir = os.path.expanduser('~/.freeseer/')
+        configdir = os.path.abspath(os.path.expanduser('~/.freeseer/'))
         self.config = Config(configdir)
         self.logger = Logger(configdir)
 
@@ -145,7 +145,7 @@ class FreeseerCore:
         Informs backend to begin recording to filename.
         '''
         record_name = self.get_record_name(filename)
-        record_location = self.config.videodir + record_name
+        record_location = os.path.abspath(self.config.videodir + "/" + record_name)
         self.freeseer.record(record_location)
         self.logger.log.info('Recording started')
 

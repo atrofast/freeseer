@@ -195,12 +195,12 @@ class MainApp(QtGui.QMainWindow):
         
     def browse_video_directory(self):
         directory = self.ui.videoDirectoryLineEdit.text()
-        videodir = QtGui.QFileDialog.getExistingDirectory(self, 'Select Video Directory', directory) + '/'
+        videodir = os.path.abspath(QtGui.QFileDialog.getExistingDirectory(self, 'Select Video Directory', directory) + '/')
         self.ui.videoDirectoryLineEdit.setText(videodir)
         
     def browse_talksfile(self):
         directory = str(self.ui.talksFileLineEdit.text()).rsplit('/', 1)[0]
-        talksfile = QtGui.QFileDialog.getOpenFileName(self, 'Select Talks File', directory, 'Talks File (*.txt)')
+        talksfile = os.path.abspath(QtGui.QFileDialog.getOpenFileName(self, 'Select Talks File', directory, 'Talks File (*.txt)'))
         if talksfile:
             self.ui.talksFileLineEdit.setText(talksfile)
 

@@ -35,7 +35,7 @@ class Logger():
         Initialize settings from a configfile
         '''
         self.configdir = configdir
-        self.logconf = "%slogging.conf" % self.configdir
+        self.logconf = os.path.abspath("%s/logging.conf" % self.configdir)
         
         # If logger.conf does not exist then create it with some defaults.
         if not os.path.isfile(self.logconf):
@@ -70,11 +70,17 @@ class Logger():
         config.set('handler_consoleHandler', 'args', '(sys.stdout,)')
         
         config.add_section('handler_syslogHandler')
-        config.set('handler_syslogHandler', 'class', 'handlers.SysLogHandler')
         config.set('handler_syslogHandler', 'level', 'NOTSET')
-        config.set('handler_syslogHandler', 'formatter', 'nix')
-        config.set('handler_syslogHandler', 'args', "(('/dev/log'), handlers.SysLogHandler.LOG_USER)")
-        
+        if os.name == 'posix':
+            config.set('handler_syslogHandler', 'class', 'handlers.SysLogHandler')
+            config.set('handler_syslogHandler', 'formatter', 'nix')
+            config.set('handler_syslogHandler', 'args', "(('/dev/log'), handlers.SysLogHandler.LOG_USER)")
+        elif os.name == 'nt':
+            config.set('handler_syslogHandler', 'class', 'handlers.NTEventLogHandler')
+            config.set('handler_syslogHandler', 'formatter', 'nix')
+            config.set('handler_syslogHandler', 'args', "('Freeseer', '', 'Application')")
+        else:
+            pass #do something? Error unsupported perhaps?
         config.add_section('formatter_basic')
         config.set('formatter_basic', 'format', '%(asctime)s freeseer: <%(levelname)s> %(message)s')
         config.set('formatter_basic', 'datefmt', '%Y-%m-%d %H:%M:%S')
@@ -87,7 +93,7 @@ class Logger():
             config.write(configfile)
         
 if __name__ == "__main__":
-    logger = Logger(os.path.expanduser('~/.freeseer/'))
+    logger = Logger(os.path.abspath(os.path.expanduser('~/.freeseer/')))
     logger.log.debug('This is a debug log')
     logger.log.critical('This is a critical log')
     logger.log.error('This is an error log')

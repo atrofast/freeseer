@@ -37,9 +37,14 @@ class Freeseer:
         self.core = core
         self.window_id = None
 
-        self.viddrv = 'v4lsrc'
-        self.viddev = '/dev/video0'
-        self.soundsrc = 'alsasrc'
+        if os.name == 'posix':
+            self.viddrv = 'v4lsrc'
+            self.viddev = '/dev/video0'
+            self.soundsrc = 'alsasrc'
+        elif os.name == 'nt':
+            self.viddrv = 'gdiscreencapsrc' #or dx9screencapsrc
+            self.viddev = 'huh?'
+            self.soundsrc = 'autoaudiosrc'
         self.filename = 'default.ogg'
         self.video_codec = 'theoraenc'
         self.audio_codec = 'vorbisenc'
@@ -156,7 +161,7 @@ class Freeseer:
         return vid_devices
 
     def get_audio_sources(self):
-        snd_sources_list = ['pulsesrc', 'alsasrc']
+        snd_sources_list = ['pulsesrc', 'alsasrc', 'autoaudiosrc']
 
         snd_sources = []
         for src in snd_sources_list:
@@ -217,7 +222,10 @@ class Freeseer:
         self.player.remove(self.vidsrc)
 
         if (self.viddrv == 'desktop'):
-            self.vidsrc = gst.element_factory_make('ximagesrc', 'vidsrc')
+            if os.name == 'posix':
+                self.vidsrc = gst.element_factory_make('ximagesrc', 'vidsrc')
+            elif os.name == 'nt':
+                self.vidsrc = gst.element_factory_make('dx9screencapsrc', 'vidsrc')
         elif (self.viddrv == 'usb'):
             self.vidsrc = gst.element_factory_make('v4l2src', 'vidsrc')
             self.vidsrc.set_property('device', self.viddev)
@@ -326,10 +334,16 @@ class Freeseer:
         self.window_id = window_id
 
         vpqueue = gst.element_factory_make('queue', 'vpqueue')
-        vpsink = gst.element_factory_make('autovideosink', 'vpsink')
+        if os.name == 'posix':
+            vpsink = gst.element_factory_make('autovideosink', 'vpsink')
+            self.player.add(vpqueue, vpsink)
+            gst.element_link_many(self.vidtee, vpqueue, vpsink)
+        elif os.name == 'nt':
+            vpsink = gst.element_factory_make('dshowvideosink', 'vpsink')
+            vpcspace = gst.element_factory_make('ffmpegcolorspace', 'vpcspace')
+            self.player.add(vpcspace, vpqueue, vpsink)
+            gst.element_link_many(self.vidtee, vpcspace, vpqueue, vpsink)
         
-        self.player.add(vpqueue, vpsink)
-        gst.element_link_many(self.vidtee, vpqueue, vpsink)
 
     def disable_preview(self):
         '''
