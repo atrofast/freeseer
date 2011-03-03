@@ -44,7 +44,8 @@ class Freeseer_gstreamer(BackendInterface):
         '''
         self.core = core
         self.window_id = None
-
+        self.preview_set = False
+        
         ##
         ## Global State Variables
         ##
@@ -87,7 +88,7 @@ class Freeseer_gstreamer(BackendInterface):
     ##
     def on_message(self, bus, message):
         t = message.type
-      
+
         if t == gst.MESSAGE_EOS:
             #self.player.set_state(gst.STATE_NULL)
             self.stop()
@@ -123,6 +124,12 @@ class Freeseer_gstreamer(BackendInterface):
     def on_sync_message(self, bus, message):
         if message.structure is None:
             return
+        if os.name == "nt" and not self.preview_set:
+            self.preview_set = True
+            vpsink = self.player.get_by_name('vpsink')
+            #vpsink.set_property('force-aspect-ratio', True)
+            vpsink.set_xwindow_id(int(self.window_id))
+
         message_name = message.structure.get_name()
         if message_name == 'prepare-xwindow-id':
             imagesink = message.src
@@ -158,13 +165,20 @@ class Freeseer_gstreamer(BackendInterface):
     def _set_video_source(self):
         video_src = gst.element_factory_make(self.video_source, 'video_src')
         if (self.video_source_type.startswith('usb')):
-            video_src.set_property('device', self.video_device)
+            if os.name == "nt":
+                video_src.set_property('device-index', int(self.video_device))
+            else:
+                video_src.set_property('device', self.video_device)
             
         video_rate = gst.element_factory_make('videorate', 'video_rate')
         video_rate_cap = gst.element_factory_make('capsfilter',
                                                     'video_rate_cap')
-        video_rate_cap.set_property('caps',
-                        gst.caps_from_string('video/x-raw-rgb, framerate=10/1'))
+        if os.name == "nt":
+            video_rate_cap.set_property('caps',
+                            gst.caps_from_string('video/x-raw-rgb, framerate=5/1'))
+        else:
+            video_rate_cap.set_property('caps',
+                            gst.caps_from_string('video/x-raw-rgb, framerate=10/1'))
         video_scale = gst.element_factory_make('videoscale', 'video_scale')
         video_scale_cap = gst.element_factory_make('capsfilter',
                                                     'video_scale_cap')
@@ -175,9 +189,14 @@ class Freeseer_gstreamer(BackendInterface):
         if self.recording_width != '0':
             self.core.logger.log.debug('Recording will be scaled to %sx%s'
                 % (self.recording_width, self.recording_height))
-            video_scale_cap.set_property('caps',
-                gst.caps_from_string('video/x-raw-rgb, width=%s, height=%s'
-                % (self.recording_width, self.recording_height)))
+            if os.name == "nt":
+                video_scale_cap.set_property('caps',
+                    gst.caps_from_string('video/x-raw-rgb, width=%s, height=%s'
+                    % (self.recording_width, self.recording_height)))
+            else:
+                video_scale_cap.set_property('caps',
+                    gst.caps_from_string('video/x-raw-rgb, width=%s, height=%s'
+                    % (self.recording_width, self.recording_height)))
 
         self.player.add(video_src,
                         video_rate,
@@ -238,10 +257,16 @@ class Freeseer_gstreamer(BackendInterface):
 
     def _set_recording_area(self):
         video_src = self.player.get_by_name('video_src')
-        video_src.set_property('startx', self.record_desktop_area_start_x)
-        video_src.set_property('starty', self.record_desktop_area_start_y)
-        video_src.set_property('endx', self.record_desktop_area_end_x)
-        video_src.set_property('endy', self.record_desktop_area_end_y)
+        if os.name == "nt":
+            video_src.set_property('x', self.record_desktop_area_start_x)
+            video_src.set_property('y', self.record_desktop_area_start_y)
+            video_src.set_property('width', self.record_desktop_area_end_x - self.record_desktop_area_start_x)
+            video_src.set_property('height', self.record_desktop_area_end_y - self.record_desktop_area_start_y)
+        else:
+            video_src.set_property('startx', self.record_desktop_area_start_x)
+            video_src.set_property('starty', self.record_desktop_area_start_y)
+            video_src.set_property('endx', self.record_desktop_area_end_x)
+            video_src.set_property('endy', self.record_desktop_area_end_y)
         print 'success'
 
     def _set_video_encoder(self):
@@ -262,13 +287,20 @@ class Freeseer_gstreamer(BackendInterface):
         self.player.remove(videoenc_queue, videoenc_codec)
 
     def _set_video_feedback(self):
-        vpqueue = gst.element_factory_make('queue', 'vpqueue')
-        vpsink = gst.element_factory_make('autovideosink', 'vpsink')
+        if os.name == "nt":
+            vpqueue = gst.element_factory_make('queue', 'vpqueue')
+            vpsink = gst.element_factory_make('sdlvideosink', 'vpsink')
+        else:
+            vpqueue = gst.element_factory_make('queue', 'vpqueue')
+            vpsink = gst.element_factory_make('autovideosink', 'vpsink')
 
         self.player.add(vpqueue, vpsink)
         gst.element_link_many(self.video_tee, vpqueue, vpsink)
     
     def _clear_video_feedback(self):
+        if os.name == "nt":
+            #Crashes on windows
+            return
         vpqueue = self.player.get_by_name('vpqueue')
         vpsink = self.player.get_by_name('vpsink')
         self.player.remove(vpqueue, vpsink)
@@ -524,7 +556,10 @@ class Freeseer_gstreamer(BackendInterface):
         vid_devices = None
 
         if videosrc == 'usb':
-            vid_devices = self._get_devices('/dev/video', 0)
+            if os.name == "nt":
+                vid_devices = ['0']
+            else:
+                vid_devices = self._get_devices('/dev/video', 0)
         elif videosrc == 'firewire':
             vid_devices = self._get_devices('/dev/fw', 1)
         # return all types
@@ -553,7 +588,7 @@ class Freeseer_gstreamer(BackendInterface):
         '''
         Returns the supported audio sources by this backend.
         '''
-        snd_sources_list = ['pulsesrc', 'alsasrc']
+        snd_sources_list = ['pulsesrc', 'alsasrc', 'autoaudiosrc']
 
         snd_sources = []
         for src in snd_sources_list:
@@ -574,9 +609,15 @@ class Freeseer_gstreamer(BackendInterface):
         self.video_device = source_device
 
         if (source_type == 'desktop'):
-            self.video_source = 'ximagesrc'
+            if os.name == "nt":
+                self.video_source = 'gdiscreencapsrc'
+            else:
+                self.video_source = 'ximagesrc'
         elif (source_type == 'usb'):
-            self.video_source = 'v4l2src'
+            if os.name == "nt":
+                self.video_source = 'ksvideosrc'
+            else:
+                self.video_source = 'v4l2src'
         elif (source_type == 'usb_fallback'):
             self.video_source = 'v4lsrc'
         elif (source_type == 'firewire'):
