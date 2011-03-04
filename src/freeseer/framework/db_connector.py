@@ -44,7 +44,7 @@ class DB_Connector():
                                 Time timestamp,
                                 Room varchar(25),
                                 Id INTEGER PRIMARY KEY,
-				FileNameId INTEGER)'''
+                                FileNameId INTEGER)'''
                                 
         self._DEFAULT_TALK = '''INSERT INTO presentations VALUES
                                 ("Thanh Ha",
@@ -55,7 +55,7 @@ class DB_Connector():
                                  "",
                                  "T105",
                                  NULL,
-				 0)'''
+                                 0)'''
 
         self.configdir = configdir
         self.presentations_file = os.path.abspath("%s/presentations.db" % self.configdir)
